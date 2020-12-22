@@ -1,0 +1,475 @@
+---
+title: "INF2400-Millennials and Finances_v1"
+author: "Asel, Rachel, Shabrina, Shweta"
+date: "07/07/2020"
+output:
+  pdf_document: default
+  html_document: default
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dbplyr)
+library(tidyverse)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+library(skimr)
+library(janitor)
+library(cansim) # A library to access Statistics Canada datasets
+
+```
+
+
+# Financial Security Survey dataset.
+```{r, echo = FALSE}
+
+# Downloaded 2016 Survey of Financial Security by Pensions and Wealth Surveys Section, Income Statistics Division
+fin_security <- get_cansim("11100016")
+
+fin_security <- janitor::clean_names(fin_security)
+
+```
+
+## Filtering age groups and dollar values
+```{r, echo = FALSE}
+cleaned_fin_sec_data <- 
+  fin_security %>% 
+  filter(economic_family_type == "Economic families and persons not in an economic family", uom == "2016 constant dollars", confidence_intervals == "Estimate", statistics == "Total values") %>%
+  filter(age_group != "All ages") %>% 
+  filter(age_group != "Under 65 years") %>% 
+  select(ref_date,
+         geo,
+         assets_and_debts,
+         age_group,
+         value) %>% 
+  mutate(age = case_when(
+    age_group == "Under 35 years" ~ 1,
+    age_group == "35 to 44 years" ~ 2,
+    age_group == "45 to 54 years" ~ 3,
+    age_group == "55 to 64 years" ~ 4,
+    age_group == "65 years and older" ~ 5))
+
+
+```
+
+## Break down the assets and debts column into variables and filter to provinces
+```{r, echo = FALSE}
+
+provinces_fin_sec <- cleaned_fin_sec_data %>% 
+  pivot_wider(names_from = assets_and_debts, values_from = value) %>% 
+  filter(geo != "Canada") %>% 
+  filter(geo != "Atlantic") %>% 
+  filter(geo != "Québec, Quebec") %>% 
+  filter(geo != "Montréal, Quebec") %>% 
+  filter(geo != "Toronto, Ontario") %>% 
+  filter(geo != "Prairies") %>% 
+  filter(geo != "Winnipeg, Manitoba") %>% 
+  filter(geo != "Calgary, Alberta") %>% 
+  filter(geo != "Edmonton, Alberta") %>% 
+  filter(geo != "Vancouver, British Columbia")
+
+provinces_fin_sec <- janitor::clean_names(provinces_fin_sec)
+
+write.csv(provinces_fin_sec, "/Users/aselkushkeyeva/Desktop/provinces_fin_sec.csv")
+
+```
+
+## Plot financial assets non pension and age_group
+```{r, echo = FALSE}
+provinces_fin_sec %>% 
+  ggplot(mapping = aes(x = age_group, y = financial_assets_non_pension/1000)) +
+  geom_col() +
+  facet_wrap(vars(ref_date)) +
+  theme_light() +
+  labs(x = "Age groups",
+      y = "Financial Assests (non-pension) in Million CAD",
+      title = "Financial assets across age groups in Million CAD")
+
+```
+
+## Plot student loans and age_group
+```{r, echo = FALSE}
+provinces_fin_sec %>% 
+  ggplot(mapping = aes(x = age_group, y = student_loans)) +
+  geom_col() +
+  facet_wrap(vars(ref_date)) +
+  theme_light() +
+  labs(title = "Student loans")
+
+```
+
+## Plot mortgages and age_group
+```{r, echo = FALSE}
+provinces_fin_sec %>% 
+  ggplot(mapping = aes(x = age_group, y = mortgages/1000)) +
+  geom_col() +
+  facet_wrap(vars(ref_date)) +
+  theme_light() +
+  labs(title = "Mortgages")
+
+```
+
+
+## Plot credit card debt and age_group
+
+Credit card debts ar not as high for millennials as for elder age groups, 45 to 54 years old being the highest in 2016.
+
+
+```{r, echo = FALSE}
+provinces_fin_sec %>% 
+  ggplot(mapping = aes(x = age_group, y = credit_card_and_installment_debt)) +
+  geom_col() +
+  facet_wrap(vars(ref_date)) +
+  theme_light() +
+  labs(title = "Credit cards")
+
+```
+
+## Plot line of creditt and age_group
+
+```{r, echo = FALSE}
+provinces_fin_sec %>% 
+  ggplot(mapping = aes(x = age_group, y = line_of_credit)) +
+  geom_col() +
+  facet_wrap(vars(ref_date)) +
+  theme_light() +
+  labs(title = "Line of credit")
+
+```
+
+## Plot RRSPs across provinces
+
+```{r, echo = FALSE}
+provinces_fin_sec %>% 
+  ggplot(mapping = aes(x = geo,
+                       y = registered_retirement_savings_plans_rrs_ps_registered_retirement_income_funds_rri_fs_locked_in_retirement_accounts_lir_as_and_other/1000)) +
+  geom_col() +
+  facet_wrap(vars(ref_date)) +
+  theme_light() +
+  labs(title = "RRSPs, RRIFs, LIRAs and others") +
+  coord_flip()
+
+```
+
+## Extract 1999 and 2016 - Gen X and Millennials - and plot financial assets
+
+```{r, echo = FALSE}
+
+prov_noAtl_1999_2016 <- provinces_fin_sec %>% 
+  filter(ref_date != 2005) %>% 
+  filter(ref_date != 2012) %>% 
+  filter(age_group == "Under 35 years") %>% 
+  filter(geo != "Newfoundland and Labrador") %>% 
+  filter(geo != "Prince Edward Island") %>% 
+  filter(geo != "Nova Scotia") %>% 
+  filter(geo != "New Brunswick")
+```
+```{r, echo = FALSE}
+prov_noAtl_1999_2016 %>% 
+  ggplot(mapping = aes(x = geo,
+                       y = registered_retirement_savings_plans_rrs_ps_registered_retirement_income_funds_rri_fs_locked_in_retirement_accounts_lir_as_and_other)) +
+  geom_col() +
+  theme_light() +
+  labs(title = "Registered retirement funds")+ xlab("Provinces")+
+  ylab("Value in Million CAD") +
+  facet_wrap(vars(ref_date)) +
+  coord_flip()
+
+write.csv(prov_noAtl_1999_2016, "/Users/aselkushkeyeva/Desktop/prov_no_Atlantic_1999_2016.csv")
+
+```
+## ONTARIO only
+
+```{r, echo = FALSE}
+
+prov_ontario_1999_2016 <- provinces_fin_sec %>% 
+  filter(ref_date != 2005) %>% 
+  filter(ref_date != 2012) %>% 
+  filter(age_group == "Under 35 years") %>% 
+  filter(geo == "Ontario")
+  
+```
+```{r, echo = FALSE}
+prov_ontario_1999_2016 %>% 
+  ggplot(mapping = aes(x = mutual_funds_investment_funds_and_income_trusts,
+                       y = ref_date)) +
+  geom_col() +
+  theme_light() +
+  labs(title = "Ontario Mutual Funds") +
+  xlab("Value in Million CAD") + ylab("1999 and 2016") +
+  coord_flip()
+
+write.csv(prov_ontario_1999_2016, "/Users/aselkushkeyeva/Desktop/prov_Ontario_1999_2016.csv")
+
+```
+## Ontario only - Rrsps
+
+```{r, echo = FALSE}
+
+prov_ontario_1999_2016 <- provinces_fin_sec %>% 
+  filter(ref_date != 2005) %>% 
+  filter(ref_date != 2012) %>% 
+  filter(age_group == "Under 35 years") %>% 
+  filter(geo == "Ontario")
+  
+```
+```{r, echo = FALSE}
+prov_ontario_1999_2016 %>% 
+  ggplot(mapping = aes(x = registered_retirement_savings_plans_rrs_ps_registered_retirement_income_funds_rri_fs_locked_in_retirement_accounts_lir_as_and_other,
+                       y = ref_date)) +
+  geom_col() +
+  theme_light() +
+  labs(title = "") +
+  xlab("Value in Million CAD") + ylab("1999 and 2016")+
+  coord_flip()
+
+#write.csv(prov_ontario_1999_2016, "/Users/aselkushkeyeva/Desktop/prov_Ontario_1999_2016.csv")
+
+```
+
+```{r, echo = FALSE}
+prov_noAtl_1999_2016 %>% 
+  ggplot(mapping = aes(x = geo,
+                       y = financial_assets_non_pension)) +
+  geom_col() +
+  theme_light() +
+  labs(title = "Financial assets (non-pension)") +
+  xlab("Provinces") + ylab("Value in Million CAD")+
+  facet_wrap(vars(ref_date)) +
+  coord_flip()
+```
+```{r, echo = FALSE}
+prov_noAtl_1999_2016 %>% 
+  ggplot(mapping = aes(x = geo,
+                       y = private_pension_assets)) +
+  geom_col() +
+  theme_light() +
+  labs(title = "Private pension assets") +
+  facet_wrap(vars(ref_date)) +
+  coord_flip()
+```
+```{r, echo = FALSE}
+# ==========Mutual funds data available only for Ontario
+prov_noAtl_1999_2016 %>% 
+  ggplot(mapping = aes(x = geo,
+                       y = mutual_funds_investment_funds_and_income_trusts)) +
+  geom_col() +
+  theme_light() +
+  labs(title = "Mutual funds") +
+  facet_wrap(vars(ref_date)) +
+  coord_flip()
+```
+
+
+
+
+## Extract 1999 and 2016 - Gen X and Millennials - from the original dataset with assets and debts in one column and plot
+
+```{r, echo = FALSE}
+
+cleaned_1999_2016 <- cleaned_fin_sec_data %>% 
+  filter(ref_date != 2005) %>% 
+  filter(ref_date != 2012) %>% 
+  filter(geo != "Canada") %>% 
+  filter(geo != "Atlantic") %>% 
+  filter(geo != "Québec, Quebec") %>% 
+  filter(geo != "Montréal, Quebec") %>% 
+  filter(geo != "Toronto, Ontario") %>% 
+  filter(geo != "Prairies") %>% 
+  filter(geo != "Winnipeg, Manitoba") %>% 
+  filter(geo != "Calgary, Alberta") %>% 
+  filter(geo != "Edmonton, Alberta") %>% 
+  filter(geo != "Vancouver, British Columbia") %>% 
+  filter(age_group == "Under 35 years") %>% 
+  pivot_wider(names_from = assets_and_debts, values_from = value)
+
+cleaned_1999_2016 <- janitor::clean_names(cleaned_1999_2016)
+```
+```{r, echo = FALSE}
+cleaned_rows_1999_2016 <- cleaned_1999_2016 %>% 
+  rename(RRSPs_RRIFs_LIRAs_other = registered_retirement_savings_plans_rrs_ps_registered_retirement_income_funds_rri_fs_locked_in_retirement_accounts_lir_as_and_other) %>% 
+  rename(mutual_funds_income_trusts = mutual_funds_investment_funds_and_income_trusts) %>% 
+  rename(TFSAs = tax_free_saving_accounts_tfsa) %>% 
+  rename(employer_sponsored_pension_plans = employer_sponsored_registered_pension_plans_ep_ps)
+```
+```{r, echo = FALSE}
+longer_1999_2016 <- cleaned_rows_1999_2016  %>% 
+  pivot_longer(cols = c(total_assets,
+                        private_pension_assets,
+                        RRSPs_RRIFs_LIRAs_other,
+                        employer_sponsored_pension_plans,
+                        financial_assets_non_pension,
+                        deposits_in_financial_institutions,
+                        mutual_funds_income_trusts,
+                        stocks,
+                        bonds_saving_and_other,
+                        TFSAs,
+                        other_financial_assets,
+                        non_financial_assets,
+                        principal_residence,
+                        other_real_estate,
+                        vehicles,
+                        other_non_financial_assets,
+                        equity_in_business,
+                        total_debts,
+                        mortgages,
+                        mortgage_on_principal_residence,
+                        mortgage_on_other_real_estate,
+                        line_of_credit,
+                        credit_card_and_installment_debt,
+                        student_loans,
+                        vehicle_loans,
+                        other_debt,
+                        net_worth_assets_less_debts), 
+               names_to = "assets_debts",
+               values_to = "value")
+```
+```{r, echo = FALSE}
+longer_1999_2016 %>% 
+  ggplot(mapping = aes(x = assets_debts, y = value)) +
+  geom_col() +
+  theme_light() +
+  labs(title = "All assests and debts for Gen X and Millennials") +
+  facet_wrap(vars(ref_date)) +
+  coord_flip()
+
+write.csv(longer_1999_2016, "/Users/aselkushkeyeva/Desktop/longer_1999_2016.csv")
+```
+
+## Extract 2016 data
+
+```{r, echo = FALSE}
+
+provinces_2016 <- provinces_fin_sec %>% 
+  filter(ref_date == 2016)
+```
+
+## Plot 2016 data
+```{r, echo = FALSE}
+
+provinces_2016  %>% 
+  ggplot(mapping = aes(x = geo,
+                       y = tax_free_saving_accounts_tfsa)) +
+  geom_col() +
+  theme_light() +
+  labs(title = "TFSA Values in 2016") +
+  xlab("Provinces") +
+  ylab("Tax Free Savings Accounts Value in Million CAD")+
+  facet_wrap(vars(age_group)) +
+  coord_flip()
+ # theme(legend.position="bottom")
+```
+
+
+\newpage
+# References
+
+- Ascione, L. Higher-ed leaders: Here’s how Generation Z learns best.
+https://www.ecampusnews.com/2019/02/15/higher-ed-leaders-generation-z-learns-best/
+
+- BBC. (2017). The avocado toast index: How many breakfasts to buy a house?
+https://www.bbc.com/worklife/article/20170530-the-avocado-toast-index-how-many-breakfasts-to-buy-a-house
+
+- Campbell, D., Hunt, J., & Wissink, R. (2019). The Millennial Report.
+http://cdn3.reincanada.com/Research/REIN_The_Millennial_Report_DIGITAL.pdf
+
+- CFA Institute. (2018, October). Uncertain futures: 7 myths about millennials and investing.  https://www.cfainstitute.org/-/media/documents/support/advocacy/1801081-insights-millennials-and-investing-booklet.ashx
+
+- Chen, J. (2020, June 8). Millennials: Finances, Investing, and Retirement. Investopedia.
+https://www.investopedia.com/terms/m/millennial.asp
+
+- Cooper, L. (2016, October). Millennials. RBC Economics. Research. http://www.rbc.com/economics/economic-reports/pdf/other-reports/Millennials-October%202016.pdf
+
+- Cooper, P. (2018, January 8). How Degree Inflation Weakens The Economy.
+https://www.forbes.com/sites/prestoncooper2/2018/01/08/employers-demanding-college-degrees-weaken-the-economy/#2ae113986b11
+
+- Crowe, Anna. (2016, August 3). Growth Hacking Your Content on Medium. Search Engine Journal.
+https://www.searchenginejournal.com/12-step-guide-growth-medium/167771/#:~:text=In%20December%202015%2C%20according%20to,Medium%20has%2061.7%20million%20visits.&text=In%20April%202015%2C%20Native%20Advertising,earn%20six%20figures%20or%20more.
+
+- The Environics Institute. (2016). Canadian Millennials Social Values Survey - 2016.
+https://www.environicsinstitute.org/docs/default-source/project-documents/canadian-millennial-social-values-study/canadian-millennials-social-values-study---data-tables.pdf
+
+- The Environics Institute. (2017). Canadian Millennial Social Values Study.
+https://www.environicsinstitute.org/projects/project-details/canadian-millennial-social-values-study
+
+- Franklin, H. (2019, February 14). Why repaying student debt early is the best investment you can make.
+https://www.moneysense.ca/columns/ask-moneysense/repay-student-debt-before-investing/
+
+- Firke, S. (2020). janitor: Simple Tools for Examining and Cleaning Dirty Data. R
+  package version 2.0.1. https://CRAN.R-project.org/package=janitor
+
+- Gaviola, A. (2020, May 19). Canada, Here's What You Need to Do About Your Student Loans Right Now.
+https://www.vice.com/en_ca/article/z3evey/canada-heres-what-you-need-to-do-about-your-student-loans-right-now
+
+- Goldman Sachs. (2020). Millennials. Coming of age. https://www.goldmansachs.com/insights/archive/millennials/
+
+- Heisz, A. & Richards, E. (2019, April 18). Economic well-being across generations of young Canadians: Are millennials better or worse off? https://www150.statcan.gc.ca/n1/pub/11-626-x/11-626-x2019006-eng.htm
+
+- Iacurci, G. (2020, February 4). The gig economy has ballooned by 6 million people since 2010. Financial worries may follow.
+https://www.cnbc.com/2020/02/04/gig-economy-grows-15percent-over-past-decade-adp-report.html
+
+- Kim, L. (2018, November 13). 10 Insanely Good Reasons You Should Publish On Medium. The WordStream Blog.
+https://www.wordstream.com/blog/ws/2016/07/14/medium-publishing
+
+- Knueven, L. (2020, February 4). The 7 best ways to build wealth starting today, according to financial planners.
+https://www.businessinsider.com/personal-finance/best-ways-to-build-wealth-starting-today-2019-8
+
+- KPMG. (2019, December 5). Owning a home is becoming a pipedream for many millennials.
+https://home.kpmg/ca/en/home/media/press-releases/2019/12/owning-a-home-is-a-pipedream-for-many-millennials.html
+
+- Lalonde, D. (2018, November 30). Millennials save but why don’t they invest? https://abacusdata.ca/millennials-save-but-why-dont-they-invest/
+
+- Lemke, T. (2020, April 2). Millennials investing habits you can learn from in 2019. https://www.thebalance.com/how-millennials-are-investing-these-days-4174110
+
+- Levin, S. (2017, May 15). Millionaire tells millennials: if you want a house, stop buying avocado toast.
+https://www.theguardian.com/lifeandstyle/2017/may/15/australian-millionaire-millennials-avocado-toast-house
+
+- Martin, J. (2016, September). The Game: Easier or Tougher?
+https://pepso.ca/documents/millennial-research-summary-v7-rev-1.pdf
+
+- Ratiu, G. (2019, December 4). 2020 Housing Market Predictions.
+https://www.realtor.com/research/2020-national-housing-forecast/
+
+- RBC Economics.(2016, October). Millennials.
+http://www.rbc.com/economics/economic-reports/pdf/other-reports/Millennials-October%202016.pdf
+
+- Reddit. (2015). Why millennials don't invest in the stock market.
+https://www.reddit.com/r/investing/comments/327z2j/why_millennials_dont_invest_in_the_stock_market/
+
+- RStudio Team. (2020). RStudio: Integrated Development for R. RStudio, PBC, Boston, MA URL.         http://www.rstudio.com/
+
+- Sheppard, C. (2018, September 6). Adult Shamed For Living With His Parents Has Epic Clapback.
+https://www.huffpost.com/entry/adult-shamed-for-living-with-his-parents-has-epic-clapback_n_5b9168d4e4b0511db3e04741
+
+- Shkolnik, D. (2020). cansim: Accessing Statistics Canada Data Table and Vectors. R
+  package version 0.3.5. https://CRAN.R-project.org/package=cansim
+  
+- Statistics Canada. (2016). The Survey of Financial Security.                      https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110001601
+
+- Skelton, Z. L. (2016, November 25). The Phone Habits of Millennials – and How to Market to Them. B2B News. https://www.b2bnn.com/2016/11/phone-habits-millennials-market/
+
+- Tencer, D. (2016, September 7). Canadian Tuitions 45% Higher Than A Decade Ago, And Still Rising. 
+https://www.huffingtonpost.ca/2016/09/07/tuition-rising-canada_n_11894908.html?guccounter=1
+
+- Waring, E., Quinn, M., McNamara, A., Arino de la Rubia, E., Zhu, H. & Ellis, S. (2020). 
+  skimr: Compact and Flexible Summaries of Data. R package version
+  2.1.2. https://CRAN.R-project.org/package=skimr
+
+- Wickham, H. (2016). ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York.
+
+- Wickham, H. (2019). stringr: Simple, Consistent Wrappers for Common String Operations. 
+  R package version 1.4.0. https://CRAN.R-project.org/package=stringr
+
+- Wickham, H. & Henry, L. (2020). tidyr: Tidy Messy Data. R package version
+  1.1.0. https://CRAN.R-project.org/package=tidyr
+  
+- Wickham et al. (2019). Welcome to the tidyverse. Journal of Open Source Software,
+  4(43), 1686. https://doi.org/10.21105/joss.01686
+  
+- Williams, C. (2003, November). Finances in the golden years.
+https://www150.statcan.gc.ca/n1/pub/75-001-x/01103/6676-eng.html
+
+- Young, A., Wolfe, R., & Sellery, B. (2018). Getting Started: Human-Centred Solutions to Engage Ontario Millennials in Investing
+https://www.osc.gov.on.ca/documents/en/Investors/inv_research_20180712_getting-started.pdf
